@@ -8,6 +8,12 @@ Features:
 - typesafety
 - clear and flexible API
 
+## Install 
+
+```bash
+yarn add react-native-primitives
+```
+
 ## API
 
 ```tsx
