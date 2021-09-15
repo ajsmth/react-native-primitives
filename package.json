@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "web": "yarn workspace example expo start --web"
+  },
+  "workspaces": [
+    "example",
+    "library"
+  ],
+  "devDependencies": {
+    "expo-yarn-workspaces": "^1.5.0"
+  }
+}
