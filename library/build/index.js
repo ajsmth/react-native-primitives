@@ -28,7 +28,9 @@ function create(component, config) {
     config.selectors = config.selectors || {};
     function Component(props) {
         var style = styleFn(props);
-        var styles = Object.values(fns).map(function (fn) { return fn(config.selectors, props); });
+        var styles = Object.values(fns)
+            .map(function (fn) { return fn(config.selectors, props); })
+            .filter(Boolean);
         return React.createElement(component, __assign(__assign(__assign({}, props), config.props), { 
             // @ts-ignore
             style: __spreadArray([style, props.style], styles, true) }));
@@ -91,7 +93,9 @@ function getStylesFn(options) {
             if (options.variants[key]) {
                 var value = props[key];
                 var styleValue = options.variants[key][value];
-                styles = react_native_1.StyleSheet.compose(styles, styleValue);
+                if (styleValue) {
+                    styles = react_native_1.StyleSheet.flatten(react_native_1.StyleSheet.compose(styles, styleValue));
+                }
             }
         }
         return styles;
@@ -119,9 +123,14 @@ function useA11yTrait(selectors, props, config) {
     React.useEffect(function () {
         react_native_1.AccessibilityInfo.addEventListener(config.a11yEventName, onA11yChange);
         return function () {
-            return react_native_1.AccessibilityInfo.removeEventListener(config.a11yEventName, onA11yChange);
+            if (process.env.NODE_ENV !== "test") {
+                react_native_1.AccessibilityInfo.removeEventListener(config.a11yEventName, onA11yChange);
+            }
         };
     }, []);
+    if (!selectors[config.selector]) {
+        return undefined;
+    }
     return style;
 }
 function useAppearance(selectors, props, selector) {
@@ -149,8 +158,15 @@ function useAppearance(selectors, props, selector) {
     }, [selectors, props, selector]);
     React.useEffect(function () {
         react_native_1.Appearance.addChangeListener(onAppearanceChange);
-        return function () { return react_native_1.Appearance.removeChangeListener(onAppearanceChange); };
+        return function () {
+            if (process.env.NODE_ENV !== "test") {
+                react_native_1.Appearance.removeChangeListener(onAppearanceChange);
+            }
+        };
     }, []);
+    if (!selectors[selector]) {
+        return undefined;
+    }
     return style;
 }
 function useScreenSize(selectors, props, selector) {
@@ -174,6 +190,9 @@ function useScreenSize(selectors, props, selector) {
         }
         setStyles(styles);
     }, [value]);
+    if (!selectors[selector]) {
+        return undefined;
+    }
     return style;
 }
 function getStylesForActiveSelector(selector, props) {

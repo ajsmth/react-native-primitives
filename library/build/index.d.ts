@@ -10,29 +10,6 @@ declare type StyleFor<T> = T extends {
 declare type Options<T> = {
     base?: StyleFor<T>;
     variants?: VariantMap<StyleFor<T>>;
-    queries?: Queries<StyleFor<T>>;
-    props?: Partial<T>;
-};
-declare type Queries<T> = {
-    appearance?: {
-        light?: any;
-        dark?: any;
-    };
-    accessibility?: {
-        boldText?: any;
-        grayScale?: any;
-        invertColors?: any;
-        reduceTransparency?: any;
-    };
-    screen?: ScreenSizeQuery<T>;
-};
-declare type ScreenSizeQuery<T> = {
-    height?: {
-        [key: string]: T;
-    };
-    width?: {
-        [key: string]: T;
-    };
 };
 declare type VariantMap<T> = {
     [key: string]: {
@@ -43,10 +20,11 @@ declare type Nested<Type> = {
     [Property in keyof Type]?: keyof Type[Property];
 };
 declare type SelectorMap<VariantMap, Style> = Partial<{
-    [K in keyof VariantMap]: {
+    [K in keyof VariantMap]?: {
         [T in keyof VariantMap[K]]?: StyleFor<Style>;
     };
 }>;
+declare type DynamicMap<V, S> = SelectorMap<V, S>;
 declare type Selectors<VariantMap, Style> = {
     light?: SelectorMap<VariantMap, Style>;
     dark?: SelectorMap<VariantMap, Style>;
@@ -55,11 +33,16 @@ declare type Selectors<VariantMap, Style> = {
     invertColors?: SelectorMap<VariantMap, Style>;
     reduceTransparency?: SelectorMap<VariantMap, Style>;
     screenReader?: SelectorMap<VariantMap, Style>;
-    width?: Record<string, SelectorMap<VariantMap, Style>>;
-    height?: Record<string, SelectorMap<VariantMap, Style>>;
+    width?: {
+        [key: string]: DynamicMap<VariantMap, Style>;
+    };
+    height?: {
+        [key: string]: SelectorMap<VariantMap, Style>;
+    };
 };
 export declare function create<T, O extends Options<T>>(component: React.ComponentType<T>, config: O & {
     selectors?: Selectors<O["variants"], T>;
+    props?: T;
 }): (props: React.PropsWithChildren<T & Nested<typeof config["variants"]>>) => React.ReactElement<T, string | React.JSXElementConstructor<any>>;
 export declare function getStylesFn<T>(options: Options<T>): (props: any) => any;
 export {};

@@ -1,7 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "web": "yarn workspace example expo start --web"
+    "start": "cd example && yarn start",
+    "build": "cd library && yarn build --watch"
   },
   "workspaces": [
     "example",

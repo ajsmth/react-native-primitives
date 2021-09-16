@@ -28,29 +28,6 @@ type StyleFor<T> = T extends { style?: StyleProp<ImageStyle> }
 type Options<T> = {
   base?: StyleFor<T>;
   variants?: VariantMap<StyleFor<T>>;
-  queries?: Queries<StyleFor<T>>;
-  props?: Partial<T>;
-};
-
-type Queries<T> = {
-  appearance?: {
-    light?: any;
-    dark?: any;
-  };
-
-  accessibility?: {
-    boldText?: any;
-    grayScale?: any;
-    invertColors?: any;
-    reduceTransparency?: any;
-  };
-
-  screen?: ScreenSizeQuery<T>;
-};
-
-type ScreenSizeQuery<T> = {
-  height?: { [key: string]: T };
-  width?: { [key: string]: T };
 };
 
 type VariantMap<T> = { [key: string]: { [key2: string]: T } };
@@ -65,11 +42,13 @@ type PartialOption<Type> = {
 
 type SelectorMap<VariantMap, Style> = Partial<
   {
-    [K in keyof VariantMap]: {
+    [K in keyof VariantMap]?: {
       [T in keyof VariantMap[K]]?: StyleFor<Style>;
     };
   }
 >;
+
+type DynamicMap<V, S> = SelectorMap<V, S>;
 
 type Selectors<VariantMap, Style> = {
   light?: SelectorMap<VariantMap, Style>;
@@ -79,13 +58,13 @@ type Selectors<VariantMap, Style> = {
   invertColors?: SelectorMap<VariantMap, Style>;
   reduceTransparency?: SelectorMap<VariantMap, Style>;
   screenReader?: SelectorMap<VariantMap, Style>;
-  width?: Record<string, SelectorMap<VariantMap, Style>>;
-  height?: Record<string, SelectorMap<VariantMap, Style>>;
+  width?: { [key: string]: DynamicMap<VariantMap, Style> };
+  height?: { [key: string]: SelectorMap<VariantMap, Style> };
 };
 
 export function create<T, O extends Options<T>>(
   component: React.ComponentType<T>,
-  config: O & { selectors?: Selectors<O["variants"], T> }
+  config: O & { selectors?: Selectors<O["variants"], T>; props?: T }
 ) {
   const styleFn = getStylesFn<T>(config);
   config.selectors = config.selectors || {};
@@ -94,7 +73,9 @@ export function create<T, O extends Options<T>>(
     props: React.PropsWithChildren<T & Nested<typeof config["variants"]>>
   ) {
     const style = styleFn(props);
-    const styles = Object.values(fns).map((fn) => fn(config.selectors, props));
+    const styles = Object.values(fns)
+      .map((fn) => fn(config.selectors, props))
+      .filter(Boolean);
 
     return React.createElement<T>(component, {
       ...props,
@@ -164,8 +145,9 @@ export function getStylesFn<T>(options: Options<T>) {
       if (options.variants[key]) {
         const value = props[key];
         const styleValue = options.variants[key][value];
-
-        styles = StyleSheet.compose(styles, styleValue);
+        if (styleValue) {
+          styles = StyleSheet.flatten(StyleSheet.compose(styles, styleValue));
+        }
       }
     }
 
@@ -212,9 +194,19 @@ function useA11yTrait(
   React.useEffect(() => {
     AccessibilityInfo.addEventListener(config.a11yEventName, onA11yChange);
 
-    return () =>
-      AccessibilityInfo.removeEventListener(config.a11yEventName, onA11yChange);
+    return () => {
+      if (process.env.NODE_ENV !== "test") {
+        AccessibilityInfo.removeEventListener(
+          config.a11yEventName,
+          onA11yChange
+        );
+      }
+    };
   }, []);
+
+  if (!selectors[config.selector]) {
+    return undefined;
+  }
 
   return style;
 }
@@ -237,7 +229,6 @@ function useAppearance(selectors: any, props: any, selector: "light" | "dark") {
     if (appearance.colorScheme === selector) {
       styles = getStylesForActiveSelector(selectors[selector], props);
     }
-
     setStyles(styles);
   }
 
@@ -254,8 +245,16 @@ function useAppearance(selectors: any, props: any, selector: "light" | "dark") {
   React.useEffect(() => {
     Appearance.addChangeListener(onAppearanceChange);
 
-    return () => Appearance.removeChangeListener(onAppearanceChange);
+    return () => {
+      if (process.env.NODE_ENV !== "test") {
+        Appearance.removeChangeListener(onAppearanceChange);
+      }
+    };
   }, []);
+
+  if (!selectors[selector]) {
+    return undefined;
+  }
 
   return style;
 }
@@ -290,6 +289,10 @@ function useScreenSize(
 
     setStyles(styles);
   }, [value]);
+
+  if (!selectors[selector]) {
+    return undefined;
+  }
 
   return style;
 }

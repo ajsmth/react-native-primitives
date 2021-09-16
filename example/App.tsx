@@ -10,11 +10,11 @@ const Heading = create(Text, {
   variants: {
     align: {
       center: {
-        textAlign: 'center',
+        textAlign: "center",
       },
       left: {
-        textAlign: 'left'
-      }
+        textAlign: "left",
+      },
     },
     size: {
       large: {
@@ -66,16 +66,12 @@ const Heading = create(Text, {
     //  ...and screen width and height
     width: {
       // when `width > 768`...
-      "> 500": {
-        size: {
-          // ...update these styles
-          medium: {
-            fontSize: 38,
-            lineHeight: 36,
-          },
-        },
-      },
+      "> 500": {},
     },
+  },
+
+  props: {
+    accessibilityRole: "header",
   },
 });
 
