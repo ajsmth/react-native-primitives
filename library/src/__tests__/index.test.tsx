@@ -1,15 +1,21 @@
 import * as React from "react";
-import { Text } from "react-native";
+import { Text, View } from "react-native";
 import { render } from "@testing-library/react-native";
 import { create } from "../";
 
 test("it renders the given component", async () => {
   const Heading = create(Text, {});
+  const Box = create(View, {});
 
-  const { toJSON } = render(<Heading>Hi</Heading>);
-  const json = toJSON();
+  let { toJSON: textJSON } = render(<Heading>Hi</Heading>);
+  let json = textJSON();
 
   expect(json.type).toEqual("Text");
+
+  let { toJSON: viewJSON } = render(<Box />);
+  json = viewJSON();
+
+  expect(json.type).toEqual("View");
 });
 
 test("it passes variant style props", async () => {
@@ -39,7 +45,7 @@ test("it passes variant style props", async () => {
   );
 
   const json = toJSON();
-  
+
   expect(json.props.style[0]).toEqual({
     color: "green",
     fontSize: 38,
