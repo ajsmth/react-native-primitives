@@ -52,6 +52,22 @@ const Heading = create(Text, {
           color: "orange",
         },
       },
+
+    },
+    dark: {
+      color: {
+        success: {
+          color: "purple",
+        },
+      },
+    },
+
+    reduceTransparency: {
+      size: {
+        medium: {
+          color: "purple",
+        },
+      },
     },
 
     // selectors can also target a11y traits
@@ -65,8 +81,14 @@ const Heading = create(Text, {
 
     //  ...and screen width and height
     width: {
-      // when `width > 768`...
-      "> 500": {},
+      // when `width > 500`...
+      "> 500": {
+        size: {
+          medium: {
+            fontSize: 28,
+          },
+        },
+      },
     },
   },
 
@@ -78,7 +100,7 @@ const Heading = create(Text, {
 export default function App() {
   return (
     <View style={styles.container}>
-      <Heading size="large" color="success">
+      <Heading size="medium" color="success">
         Hi...try updating the theme
       </Heading>
 

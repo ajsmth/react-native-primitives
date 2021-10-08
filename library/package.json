@@ -12,6 +12,7 @@
     "@testing-library/jest-native": "^4.0.2",
     "@testing-library/react-native": "^7.2.0",
     "@types/jest": "^27.0.1",
+    "@types/lodash.merge": "^4.6.6",
     "@types/react": "^17.0.20",
     "@types/react-native": "^0.65.0",
     "jest": "^27.2.0",
@@ -37,5 +38,8 @@
       "./setupTests",
       "@testing-library/jest-native/extend-expect"
     ]
+  },
+  "dependencies": {
+    "lodash.merge": "^4.6.2"
   }
 }

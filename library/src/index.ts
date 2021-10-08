@@ -2,18 +2,14 @@ import * as React from "react";
 import {
   Appearance,
   AccessibilityInfo,
-  AccessibilityChangeEvent,
   AccessibilityChangeEventName,
-  useWindowDimensions,
   StyleProp,
   StyleSheet,
   ViewStyle,
   ImageStyle,
   TextStyle,
+  Dimensions,
 } from "react-native";
-
-// TODO - add animated styles to type below
-// TODO - conditional hooks (at least for production)
 
 // this was the best way I could think of to get the right style props
 // ordering is important - view style overrides the others when placed first
@@ -40,13 +36,11 @@ type PartialOption<Type> = {
   [Property in keyof Type]?: keyof Type[Property];
 };
 
-type SelectorMap<VariantMap, Style> = Partial<
-  {
-    [K in keyof VariantMap]?: {
-      [T in keyof VariantMap[K]]?: StyleFor<Style>;
-    };
-  }
->;
+type SelectorMap<VariantMap, Style> = Partial<{
+  [K in keyof VariantMap]?: {
+    [T in keyof VariantMap[K]]?: StyleFor<Style>;
+  };
+}>;
 
 type DynamicMap<V, S> = SelectorMap<V, S>;
 
@@ -62,6 +56,8 @@ type Selectors<VariantMap, Style> = {
   height?: { [key: string]: SelectorMap<VariantMap, Style> };
 };
 
+const selectorStore = createSelectorStore();
+
 export function create<T, O extends Options<T>>(
   component: React.ComponentType<T>,
   config: O & { selectors?: Selectors<O["variants"], T>; props?: T }
@@ -73,67 +69,18 @@ export function create<T, O extends Options<T>>(
     props: React.PropsWithChildren<T & Nested<typeof config["variants"]>>
   ) {
     const style = styleFn(props);
-    const styles = Object.values(fns)
-      .map((fn) => fn(config.selectors, props))
-      .filter(Boolean);
+    const selectorStyle = useSelectors(config.selectors, props);
 
     return React.createElement<T>(component, {
       ...props,
       ...config.props,
       // @ts-ignore
-      style: [style, props.style, ...styles],
+      style: [style, props.style, selectorStyle],
     });
   }
 
   return Component;
 }
-
-const fns = {
-  light: (selectors: any, props: any) =>
-    useAppearance(selectors, props, "light"),
-
-  dark: (selectors: any, props: any) => useAppearance(selectors, props, "dark"),
-
-  boldText: (selectors: any, props: any) =>
-    useA11yTrait(selectors, props, {
-      selector: "boldText",
-      a11yEventName: "boldTextChanged",
-      getValueAsync: AccessibilityInfo.isBoldTextEnabled,
-    }),
-
-  grayScale: (selectors: any, props: any) =>
-    useA11yTrait(selectors, props, {
-      selector: "grayScale",
-      a11yEventName: "grayscaleChanged",
-      getValueAsync: AccessibilityInfo.isGrayscaleEnabled,
-    }),
-
-  invertColors: (selectors: any, props: any) =>
-    useA11yTrait(selectors, props, {
-      selector: "invertColors",
-      a11yEventName: "invertColorsChanged",
-      getValueAsync: AccessibilityInfo.isInvertColorsEnabled,
-    }),
-
-  reduceTransparency: (selectors: any, props: any) =>
-    useA11yTrait(selectors, props, {
-      selector: "reduceTransparency",
-      a11yEventName: "reduceTransparencyChanged",
-      getValueAsync: AccessibilityInfo.isReduceTransparencyEnabled,
-    }),
-
-  screenReader: (selectors: any, props: any) =>
-    useA11yTrait(selectors, props, {
-      selector: "screenReader",
-      a11yEventName: "screenReaderChanged",
-      getValueAsync: AccessibilityInfo.isScreenReaderEnabled,
-    }),
-
-  width: (selectors: any, props: any) =>
-    useScreenSize(selectors, props, "width"),
-  height: (selectors: any, props: any) =>
-    useScreenSize(selectors, props, "height"),
-};
 
 export function getStylesFn<T>(options: Options<T>) {
   let styles: any = options.base || {};
@@ -157,155 +104,192 @@ export function getStylesFn<T>(options: Options<T>) {
   return handleVariantProps;
 }
 
-function useA11yTrait(
-  selectors: any,
-  props: any,
-  config: {
-    selector: string;
-    a11yEventName: AccessibilityChangeEventName;
-    getValueAsync: () => Promise<boolean>;
-  }
-) {
-  const [style, setStyles] = React.useState({});
+type SelectorStoreListener = (updatedKeys: string[], state: any) => void;
 
-  React.useEffect(() => {
-    config.getValueAsync().then((isActive) => {
-      if (isActive) {
-        const styles = getStylesForActiveSelector(
-          selectors[config.selector],
-          props
-        );
+function createSelectorStore() {
+  const activeSelectorMap: Record<string, boolean> = {};
+  const dimensionMap: Record<string, number> = {};
 
-        setStyles(styles);
-      }
-    });
-  }, [selectors, props]);
+  let listeners: SelectorStoreListener[] = [];
 
-  function onA11yChange(isActive: AccessibilityChangeEvent) {
-    let styles = {};
-
-    if (isActive) {
-      styles = getStylesForActiveSelector(selectors[config.selector], props);
+  const currentColorScheme = Appearance.getColorScheme();
+  if (currentColorScheme != null) {
+    if (currentColorScheme === "light") {
+      activeSelectorMap["light"] = true;
+      activeSelectorMap["dark"] = false;
+    } else if (currentColorScheme === "dark") {
+      activeSelectorMap["light"] = false;
+      activeSelectorMap["dark"] = true;
     }
 
-    setStyles(styles);
+    notify(["light", "dark"]);
   }
 
-  React.useEffect(() => {
-    AccessibilityInfo.addEventListener(config.a11yEventName, onA11yChange);
-
-    return () => {
-      if (process.env.NODE_ENV !== "test") {
-        AccessibilityInfo.removeEventListener(
-          config.a11yEventName,
-          onA11yChange
-        );
-      }
-    };
-  }, []);
-
-  if (!selectors[config.selector]) {
-    return undefined;
-  }
-
-  return style;
-}
-
-function useAppearance(selectors: any, props: any, selector: "light" | "dark") {
-  const [style, setStyles] = React.useState(() => {
-    const colorScheme = Appearance.getColorScheme();
-    const selectorActive = colorScheme === selector;
-
-    if (selectorActive) {
-      return getStylesForActiveSelector(selectors[selector], props);
+  Appearance.addChangeListener(({ colorScheme }) => {
+    if (colorScheme === "light") {
+      activeSelectorMap["light"] = true;
+      activeSelectorMap["dark"] = false;
+    } else if (colorScheme === "dark") {
+      activeSelectorMap["light"] = false;
+      activeSelectorMap["dark"] = true;
+    } else {
+      delete activeSelectorMap["light"];
+      delete activeSelectorMap["dark"];
     }
 
-    return {};
+    notify(["light", "dark"]);
   });
 
-  function onAppearanceChange(appearance: Appearance.AppearancePreferences) {
-    let styles = {};
+  const a11yTraits: AccessibilityChangeEventName[] = [
+    "boldTextChanged",
+    "grayscaleChanged",
+    "invertColorsChanged",
+    "reduceMotionChanged",
+    "reduceTransparencyChanged",
+    "screenReaderChanged",
+  ];
 
-    if (appearance.colorScheme === selector) {
-      styles = getStylesForActiveSelector(selectors[selector], props);
-    }
-    setStyles(styles);
+  a11yTraits.forEach((trait) => {
+    AccessibilityInfo.addEventListener(trait, (isActive) => {
+      activeSelectorMap[trait] = isActive;
+      notify([trait]);
+    });
+  });
+
+  async function getInitialValues() {
+    const [
+      isBoldTextEnabled,
+      isGrayscaleEnabled,
+      isInvertColorsEnabled,
+      isReduceMotionEnabled,
+      isReduceTransparencyEnabled,
+      isScreenReaderEnabled,
+    ] = await Promise.all([
+      AccessibilityInfo.isBoldTextEnabled(),
+      AccessibilityInfo.isGrayscaleEnabled(),
+      AccessibilityInfo.isInvertColorsEnabled(),
+      AccessibilityInfo.isReduceMotionEnabled(),
+      AccessibilityInfo.isReduceTransparencyEnabled(),
+      AccessibilityInfo.isScreenReaderEnabled(),
+    ]);
+
+    activeSelectorMap["boldText"] = isBoldTextEnabled;
+    activeSelectorMap["grayScale"] = isGrayscaleEnabled;
+    activeSelectorMap["invertColors"] = isInvertColorsEnabled;
+    activeSelectorMap["reduceMotion"] = isReduceMotionEnabled;
+    activeSelectorMap["reduceTransparency"] = isReduceTransparencyEnabled;
+    activeSelectorMap["screenReader"] = isScreenReaderEnabled;
+
+    notify(a11yTraits);
   }
 
-  React.useEffect(() => {
-    let styles = {};
+  getInitialValues();
 
-    if (Appearance.getColorScheme() === selector) {
-      styles = getStylesForActiveSelector(selectors[selector], props);
-    }
+  const { width: initialWidth, height: initialHeight } =
+    Dimensions.get("screen");
 
-    setStyles(styles);
-  }, [selectors, props, selector]);
+  dimensionMap["width"] = initialWidth;
+  dimensionMap["height"] = initialHeight;
 
-  React.useEffect(() => {
-    Appearance.addChangeListener(onAppearanceChange);
+  Dimensions.addEventListener("change", ({ screen }) => {
+    dimensionMap["width"] = screen.width;
+    dimensionMap["height"] = screen.height;
+
+    notify(["width", "height"]);
+  });
+
+  function subscribe(fn: SelectorStoreListener) {
+    listeners.push(fn);
+
+    notify([]);
 
     return () => {
-      if (process.env.NODE_ENV !== "test") {
-        Appearance.removeChangeListener(onAppearanceChange);
-      }
+      listeners = listeners.filter((l) => l !== fn);
     };
-  }, []);
-
-  if (!selectors[selector]) {
-    return undefined;
   }
 
-  return style;
+  function getState() {
+    return {
+      ...activeSelectorMap,
+      ...dimensionMap,
+    };
+  }
+
+  function notify(keys: string[]) {
+    const state = getState();
+    listeners.forEach((listener) => listener(keys, state));
+  }
+
+  return {
+    subscribe,
+  };
 }
 
-function useScreenSize(
-  selectors: any,
-  props: any,
-  selector: "width" | "height"
-) {
-  const [style, setStyles] = React.useState({});
-
-  const dimensions = useWindowDimensions();
-  const value = dimensions[selector];
+function useSelectors(selectors: any, props: any) {
+  const [styles, setStyles] = React.useState({});
 
   React.useEffect(() => {
-    let styles = {};
+    const unsubscribe = selectorStore.subscribe((keys, state) => {
+      const variants: any = {};
 
-    const sels = selectors[selector] ?? {};
-
-    for (let key in sels) {
-      const expression = `${value} ${key}`;
-      try {
-        if (eval(expression)) {
-          styles = getStylesForActiveSelector(selectors[selector][key], props);
+      Object.entries(state).forEach(([selectorKey, selectorValue]: any) => {
+        if (selectorValue !== false) {
+          if (selectorKey === "width" || selectorKey === "height") {
+            const queries = selectors[selectorKey];
+            for (let mediaQuery in queries) {
+              const expression = `${selectorValue} ${mediaQuery}`;
+              try {
+                if (eval(expression)) {
+                  mergeDeep(variants, queries[mediaQuery]);
+                }
+              } catch (error) {
+                console.warn(
+                  `Did not pass in a valid query selector '${expression}' -> try a key with a valid expression like '> {number}'`
+                );
+              }
+            }
+          } else {
+            mergeDeep(variants, selectors[selectorKey]);
+          }
         }
-      } catch (error) {
-        console.warn(
-          `Did not pass in a valid query selector '${expression}' -> try a key with a valid expression like '> {number}'`
-        );
-      }
-    }
+      });
 
-    setStyles(styles);
-  }, [value]);
+      const activeStyles = {};
 
-  if (!selectors[selector]) {
-    return undefined;
-  }
+      Object.entries(props).forEach(([variantKey, variantValue]: any) => {
+        if (variants[variantKey] && variants[variantKey][variantValue]) {
+          mergeDeep(activeStyles, variants[variantKey][variantValue]);
+        }
+      });
 
-  return style;
-}
+      setStyles(activeStyles);
+    });
 
-function getStylesForActiveSelector(selector: any, props: any) {
-  let styles = {};
-
-  for (let key in selector) {
-    if (props[key] != null) {
-      const matcher = props[key];
-      Object.assign(styles, selector[key][matcher]);
-    }
-  }
+    return () => unsubscribe();
+  }, [selectors, props]);
 
   return styles;
+}
+
+function mergeDeep(target: any, source: any) {
+  const isObject = (obj: any) => obj && typeof obj === "object";
+
+  if (!isObject(target) || !isObject(source)) {
+    return source;
+  }
+
+  Object.keys(source).forEach((key) => {
+    const targetValue = target[key];
+    const sourceValue = source[key];
+
+    if (Array.isArray(targetValue) && Array.isArray(sourceValue)) {
+      target[key] = targetValue.concat(sourceValue);
+    } else if (isObject(targetValue) && isObject(sourceValue)) {
+      target[key] = mergeDeep(Object.assign({}, targetValue), sourceValue);
+    } else {
+      target[key] = sourceValue;
+    }
+  });
+
+  return target;
 }
