@@ -60,19 +60,17 @@ export function create<T, O extends Options>(
     const style = styleFn(props);
     const selectorStyle = useSelectors(config.selectors, props);
 
-    return (
-      <Element
-        {...props}
-        {...config.props}
-        style={StyleSheet.flatten([
-          style,
-          // @ts-ignore
-          props.style || {},
-          selectorStyle,
-        ])}
-        ref={ref}
-      />
-    );
+    return React.createElement(component, {
+      ...props,
+      ...config.props,
+      style: StyleSheet.flatten([
+        style,
+        // @ts-ignore
+        props.style || {},
+        selectorStyle,
+      ]),
+      ref,
+    });
   });
 
   return Component;
