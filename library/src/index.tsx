@@ -1,9 +1,10 @@
+// copy / paste of react-native-primitives (for the time being)
+
 import * as React from "react";
 import {
   Appearance,
   AccessibilityInfo,
   AccessibilityChangeEventName,
-  StyleProp,
   StyleSheet,
   ViewStyle,
   ImageStyle,
@@ -11,86 +12,83 @@ import {
   Dimensions,
 } from "react-native";
 
-// this was the best way I could think of to get the right style props
-// ordering is important - view style overrides the others when placed first
-type StyleFor<T> = T extends { style?: StyleProp<ImageStyle> }
-  ? StyleProp<ImageStyle>
-  : T extends { style?: StyleProp<TextStyle> }
-  ? StyleProp<TextStyle>
-  : T extends { style?: StyleProp<ViewStyle> }
-  ? StyleProp<ViewStyle>
-  : never;
+type StyleType = ViewStyle | TextStyle | ImageStyle;
 
-type Options<T> = {
-  base?: StyleFor<T>;
-  variants?: VariantMap<StyleFor<T>>;
+type Options = {
+  base?: StyleType;
+  variants?: VariantMap<StyleType>;
 };
 
-type VariantMap<T> = { [key: string]: { [key2: string]: T } };
+type VariantMap<T> = { [key: string]: { [key: string]: T } };
 
 type Nested<Type> = {
   [Property in keyof Type]?: keyof Type[Property];
 };
 
-type PartialOption<Type> = {
-  [Property in keyof Type]?: keyof Type[Property];
-};
-
-type SelectorMap<VariantMap, Style> = Partial<{
-  [K in keyof VariantMap]?: {
-    [T in keyof VariantMap[K]]?: StyleFor<Style>;
+type SelectorMap<Variants> = Partial<{
+  [K in keyof Variants]?: {
+    [T in keyof Variants[K]]?: StyleType;
   };
 }>;
 
-type DynamicMap<V, S> = SelectorMap<V, S>;
-
-type Selectors<VariantMap, Style> = {
-  light?: SelectorMap<VariantMap, Style>;
-  dark?: SelectorMap<VariantMap, Style>;
-  boldText?: SelectorMap<VariantMap, Style>;
-  grayScale?: SelectorMap<VariantMap, Style>;
-  invertColors?: SelectorMap<VariantMap, Style>;
-  reduceTransparency?: SelectorMap<VariantMap, Style>;
-  screenReader?: SelectorMap<VariantMap, Style>;
-  width?: { [key: string]: DynamicMap<VariantMap, Style> };
-  height?: { [key: string]: SelectorMap<VariantMap, Style> };
+type Selectors<Variants> = {
+  light?: SelectorMap<Variants>;
+  dark?: SelectorMap<Variants>;
+  boldText?: SelectorMap<Variants>;
+  grayScale?: SelectorMap<Variants>;
+  invertColors?: SelectorMap<Variants>;
+  reduceTransparency?: SelectorMap<Variants>;
+  screenReader?: SelectorMap<Variants>;
+  width?: { [key: string]: SelectorMap<Variants> };
+  height?: { [key: string]: SelectorMap<Variants> };
 };
 
 const selectorStore = createSelectorStore();
 
-export function create<T, O extends Options<T>>(
+export function create<T, O extends Options>(
   component: React.ComponentType<T>,
-  config: O & { selectors?: Selectors<O["variants"], T>; props?: T }
+  config: O & { selectors?: Selectors<O["variants"]>; props?: T }
 ) {
-  const styleFn = getStylesFn<T>(config);
+  const styleFn = getStylesFn(config);
   config.selectors = config.selectors || {};
+  const Element = component;
 
-  function Component(
-    props: React.PropsWithChildren<T & Nested<typeof config["variants"]>>
-  ) {
+  const Component = React.forwardRef<
+    T,
+    React.PropsWithChildren<T> & Nested<typeof config["variants"]>
+  >((props, ref) => {
     const style = styleFn(props);
     const selectorStyle = useSelectors(config.selectors, props);
 
-    return React.createElement<T>(component, {
-      ...props,
-      ...config.props,
-      // @ts-ignore
-      style: [style, props.style, selectorStyle],
-    });
-  }
+    return (
+      <Element
+        {...props}
+        {...config.props}
+        style={StyleSheet.flatten([
+          style,
+          // @ts-ignore
+          props.style || {},
+          selectorStyle,
+        ])}
+        ref={ref}
+      />
+    );
+  });
 
   return Component;
 }
 
-export function getStylesFn<T>(options: Options<T>) {
+export function getStylesFn(options: Options) {
   let styles: any = options.base || {};
 
   function handleVariantProps(props: any) {
     options.variants = options.variants || {};
+    styles = options.base;
 
-    for (let key in props) {
+    for (const key in props) {
       if (options.variants[key]) {
         const value = props[key];
+
         const styleValue = options.variants[key][value];
         if (styleValue) {
           styles = StyleSheet.flatten(StyleSheet.compose(styles, styleValue));
@@ -226,7 +224,7 @@ function createSelectorStore() {
 }
 
 function useSelectors(selectors: any, props: any) {
-  const [styles, setStyles] = React.useState({});
+  const [activeVariants, setActiveVariants] = React.useState<any>({});
 
   React.useEffect(() => {
     const unsubscribe = selectorStore.subscribe((keys, state) => {
@@ -254,21 +252,28 @@ function useSelectors(selectors: any, props: any) {
         }
       });
 
-      const activeStyles = {};
-
-      Object.entries(props).forEach(([variantKey, variantValue]: any) => {
-        if (variants[variantKey] && variants[variantKey][variantValue]) {
-          mergeDeep(activeStyles, variants[variantKey][variantValue]);
-        }
-      });
-
-      setStyles(activeStyles);
+      setActiveVariants(variants);
     });
 
     return () => unsubscribe();
-  }, [selectors, props]);
+  }, [selectors]);
 
-  return styles;
+  const activeStyles = {};
+
+  if (activeVariants["base"]) {
+    mergeDeep(activeStyles, activeVariants["base"]);
+  }
+
+  Object.entries(props).forEach(([variantKey, variantValue]: any) => {
+    if (
+      activeVariants[variantKey] &&
+      activeVariants[variantKey][variantValue]
+    ) {
+      mergeDeep(activeStyles, activeVariants[variantKey][variantValue]);
+    }
+  });
+
+  return activeStyles;
 }
 
 function mergeDeep(target: any, source: any) {

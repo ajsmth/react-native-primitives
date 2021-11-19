@@ -100,7 +100,7 @@ const Heading = create(Text, {
 export default function App() {
   return (
     <View style={styles.container}>
-      <Heading size="medium" color="success">
+      <Heading size="medium" color="normal">
         Hi...try updating the theme
       </Heading>
 
