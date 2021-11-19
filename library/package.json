@@ -9,8 +9,8 @@
     "test": "jest"
   },
   "devDependencies": {
-    "@testing-library/jest-native": "^4.0.2",
-    "@testing-library/react-native": "^7.2.0",
+    "@testing-library/jest-native": "^4.0.4",
+    "@testing-library/react-native": "^8.0.0",
     "@types/jest": "^27.0.1",
     "@types/lodash.merge": "^4.6.6",
     "@types/react": "^17.0.20",
@@ -25,15 +25,7 @@
     "react-native": "*"
   },
   "jest": {
-    "preset": "react-native",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js",
-      "jsx",
-      "json",
-      "node"
-    ],
+    "preset": "@testing-library/react-native",
     "setupFilesAfterEnv": [
       "./setupTests",
       "@testing-library/jest-native/extend-expect"

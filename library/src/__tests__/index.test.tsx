@@ -33,9 +33,7 @@ test("it passes variant style props", async () => {
 
   const json = toJSON();
 
-  expect(json.props.style[0]).toEqual({
-    fontSize: 20,
-  });
+  expect(json.props.style.fontSize).toEqual(20);
 });
 
 test("it passes base style props", async () => {
@@ -47,8 +45,7 @@ test("it passes base style props", async () => {
 
   const { toJSON } = render(<Heading>Hi</Heading>);
   const json = toJSON();
-
-  expect(json.props.style[0]).toEqual({ fontFamily: "Helvetica" });
+  expect(json.props.style).toEqual({ fontFamily: "Helvetica" });
 });
 
 test("it passes non-style props", () => {

@@ -224,6 +224,16 @@ function createSelectorStore() {
 }
 
 function useSelectors(selectors: any, props: any) {
+  const isMounted = React.useRef(false);
+
+  React.useEffect(() => {
+    isMounted.current = true;
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   const [activeVariants, setActiveVariants] = React.useState<any>({});
 
   React.useEffect(() => {
@@ -252,7 +262,9 @@ function useSelectors(selectors: any, props: any) {
         }
       });
 
-      setActiveVariants(variants);
+      if (isMounted.current) {
+        setActiveVariants(variants);
+      }
     });
 
     return () => unsubscribe();
